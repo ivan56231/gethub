@@ -1,0 +1,124 @@
+#include <stdio.h> 
+#include <stdlib.h> 
+#pragma pack(push, 1) 
+ 
+typedef unsigned char BYTE; 
+typedef unsigned int DWORD; 
+typedef unsigned short int WORD; 
+ 
+struct BitMapHeader 
+{ 
+ WORD bfType; 
+ DWORD bfSize; 
+ WORD bfReserved1; 
+ WORD bfReserved2; 
+ DWORD bfOffbits; 
+ DWORD biSize; 
+ DWORD biWidth; 
+ DWORD biHeight; 
+ WORD biPlanes; 
+ WORD biBitCount; 
+ DWORD biCompression; 
+ DWORD biSizeImage; 
+ DWORD biXPelPerMeter; 
+ DWORD biYPelPerMeter; 
+ DWORD biClrUsed; 
+ DWORD biClrImportant; 
+}; 
+ 
+struct tagRGBQUAD { 
+ unsigned char   rgbBlue; 
+ unsigned char   rgbGreen; 
+ unsigned char   rgbRed; 
+ unsigned char   rgbReserved; 
+}; 
+ 
+void ReadAndWriteHeader(FILE* file_read, FILE* file_write, BitMapHeader* header) 
+{ 
+ fseek(file_read, 0, SEEK_SET); 
+ fread(header, sizeof(BitMapHeader), 1, file_read); 
+ fwrite(header, sizeof(BitMapHeader), 1, file_write); 
+} 
+ 
+void ReadAndWriteQuad(FILE* file_read, FILE* file_write, int size, tagRGBQUAD* RGB) 
+{ 
+ fseek(file_read, size, SEEK_SET); 
+ fread(RGB, 1024, 1, file_read); 
+ fwrite(RGB, 1024, 1, file_write); 
+} 
+ 
+ 
+void WriteQuad(tagRGBQUAD* RGB, int biSize, FILE* f) { 
+ fseek(f, biSize, SEEK_SET); fwrite(RGB, 1024, 1, f); 
+} 
+ 
+ 
+ 
+int main() 
+{ 
+ BitMapHeader header; 
+ tagRGBQUAD RGBQuad[256]; 
+ 
+ char filename_read[] = "task2.bmp"; 
+ char filename_write[] = "patched.bmp"; 
+ 
+ FILE* file_read; 
+ fopen_s(&file_read, filename_read, "rb"); 
+  
+ if (file_read == NULL) 
+ { 
+  printf("Failed to open the file for reading!\n"); 
+  return 1; 
+ } 
+ 
+ FILE* file_write; 
+ fopen_s(&file_write, filename_write, "wb"); 
+ 
+ 
+ if (file_write == NULL) 
+ { 
+  printf("Failed to open the file for writing!\n"); 
+  return 1; 
+ } 
+ 
+ ReadAndWriteHeader(file_read, file_write, &header); 
+ ReadAndWriteQuad(file_read, file_write, header.biSize + 14, RGBQuad); 
+ 
+
+ printf("Image dimensions: %u x %u\n", header.biWidth, header.biHeight); 
+ printf("Original file size: %u bytes\n", header.bfSize); 
+  
+ for (int i = 0; i < 256; i++) { 
+  RGBQuad[i].rgbBlue = RGBQuad[i].rgbGreen = RGBQuad[i].rgbRed = 0; 
+  RGBQuad[i].rgbReserved = 0; 
+ } 
+ RGBQuad[1].rgbBlue = 255; 
+ RGBQuad[2].rgbBlue = RGBQuad[2].rgbGreen = RGBQuad[2].rgbRed = 255; 
+ RGBQuad[3].rgbRed = 255; 
+ WriteQuad(RGBQuad, sizeof(BitMapHeader), file_write); 
+ int third = header.biHeight / 3; 
+ for (int y = 0; y < header.biHeight; y++) { 
+  for (int x = 0; x < header.biWidth; x++) { 
+   BYTE colorIndex; 
+   if (y < third) { 
+    colorIndex = 3; 
+   } 
+   else if (y < 2 * third) { 
+    colorIndex = 1; 
+   } 
+   else { 
+    colorIndex = 2; 
+   } 
+   fwrite(&colorIndex, sizeof(BYTE), 1, file_write); 
+  } 
+ } 
+ printf("BMP created successfully!\n"); 
+ return 0; 
+ 
+ 
+ 
+ fclose(file_read); 
+ fclose(file_write); 
+
+ printf("The file was patched successfully!\n"); 
+}
